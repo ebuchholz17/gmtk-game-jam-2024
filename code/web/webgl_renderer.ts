@@ -20,6 +20,7 @@ class WebGLRenderer {
     public windowHeight: number = 0;
 
     public textures: WebGLTexture[] = [];
+    public textureSizes: [number, number][] = [];
 
     public numSpritesDrawnThisFrame: number = 0;
     public spriteBatchNumSpritesDrawn: number = 0;
@@ -89,6 +90,7 @@ function initWebGL (canvas: HTMLCanvasElement, memory: Uint8Array): void {
 
     let gl: WebGLRenderingContext = wglr.glContext;
     //gl.getExtension("OES_element_index_uint");
+    gl.getExtension("OES_standard_derivatives");
     wglr.spriteShader = compileAndLinkShader(gl, sprite_vertex_source, sprite_fragment_source);
 
     wglr.spriteVertexBuffer = gl.createBuffer();
@@ -117,7 +119,7 @@ function webglOnRenderStart (): void {
     gl.viewport(0, 0, wglr.windowWidth, wglr.windowHeight);
     //gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
-    gl.clearColor(0.0, 0.7, 0.8, 0.0);
+    gl.clearColor(0.05, 0.07, 0.16, 0.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     gl.enable(gl.BLEND);
@@ -130,12 +132,14 @@ function webglLoadTexture (id: number, width: number, height: number, pixelDataP
     if (wglr.textures.length != id) { throw 1; }
     wglr.textures.push(texture);
 
+    wglr.textureSizes.push([width, height]);
+
     let pixelView = new Uint8Array(wglr.memoryView.buffer, pixelDataPtr, width * height * 4);
 
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixelView);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 }
@@ -192,6 +196,9 @@ function webglSpriteBatchFlush (spriteDataPtr: number, numSpritesBatched: number
 
         var textureLocation = gl.getUniformLocation(program, "texture" + i);
         gl.uniform1i(textureLocation, i);
+
+        var textureSizeLocation = gl.getUniformLocation(program, "texture" + i + "Size");
+        gl.uniform2fv(textureSizeLocation, wglr.textureSizes[textureIDArrayView[i]]);
     }
     gl.drawElements(gl.TRIANGLES, numSpritesBatched * 6, gl.UNSIGNED_SHORT, numSpritesDrawn * 6);
 }

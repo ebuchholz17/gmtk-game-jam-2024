@@ -179,9 +179,14 @@
             <key type="filename">game_atlas/bubble_purple.png</key>
             <key type="filename">game_atlas/bubble_red.png</key>
             <key type="filename">game_atlas/bubble_yellow.png</key>
+            <key type="filename">game_atlas/cannon_0.png</key>
+            <key type="filename">game_atlas/cannonball.png</key>
             <key type="filename">game_atlas/diamond.png</key>
+            <key type="filename">game_atlas/farmer_0.png</key>
             <key type="filename">game_atlas/goblin_0.png</key>
             <key type="filename">game_atlas/goblin_1.png</key>
+            <key type="filename">game_atlas/knight_0.png</key>
+            <key type="filename">game_atlas/slash.png</key>
             <struct type="IndividualSpriteSettings">
                 <key>pivotPoint</key>
                 <point_f>0.5,0.5</point_f>
@@ -226,6 +231,22 @@
                 <key>scale9FromFile</key>
                 <false/>
             </struct>
+            <key type="filename">game_atlas/black_knight_0.png</key>
+            <key type="filename">game_atlas/black_knight_1.png</key>
+            <struct type="IndividualSpriteSettings">
+                <key>pivotPoint</key>
+                <point_f>0.5,0.5</point_f>
+                <key>spriteScale</key>
+                <double>1</double>
+                <key>scale9Enabled</key>
+                <false/>
+                <key>scale9Borders</key>
+                <rect>6,5,12,11</rect>
+                <key>scale9Paddings</key>
+                <rect>6,5,12,11</rect>
+                <key>scale9FromFile</key>
+                <false/>
+            </struct>
             <key type="filename">game_atlas/button_down.png</key>
             <key type="filename">game_atlas/button_over.png</key>
             <key type="filename">game_atlas/button_up.png</key>
@@ -260,11 +281,7 @@
                 <key>scale9FromFile</key>
                 <false/>
             </struct>
-            <key type="filename">game_atlas/dpad_down_down.png</key>
-            <key type="filename">game_atlas/dpad_down_up.png</key>
-            <key type="filename">game_atlas/dpad_up.png</key>
-            <key type="filename">game_atlas/dpad_up_down.png</key>
-            <key type="filename">game_atlas/dpad_up_up.png</key>
+            <key type="filename">game_atlas/dashed_lines.png</key>
             <struct type="IndividualSpriteSettings">
                 <key>pivotPoint</key>
                 <point_f>0.5,0.5</point_f>
@@ -273,16 +290,14 @@
                 <key>scale9Enabled</key>
                 <false/>
                 <key>scale9Borders</key>
-                <rect>11,14,21,27</rect>
+                <rect>95,0,190,1</rect>
                 <key>scale9Paddings</key>
-                <rect>11,14,21,27</rect>
+                <rect>95,0,190,1</rect>
                 <key>scale9FromFile</key>
                 <false/>
             </struct>
-            <key type="filename">game_atlas/dpad_left_down.png</key>
-            <key type="filename">game_atlas/dpad_left_up.png</key>
-            <key type="filename">game_atlas/dpad_right_down.png</key>
-            <key type="filename">game_atlas/dpad_right_up.png</key>
+            <key type="filename">game_atlas/gargoyle_0.png</key>
+            <key type="filename">game_atlas/gargoyle_1.png</key>
             <struct type="IndividualSpriteSettings">
                 <key>pivotPoint</key>
                 <point_f>0.5,0.5</point_f>
@@ -291,25 +306,9 @@
                 <key>scale9Enabled</key>
                 <false/>
                 <key>scale9Borders</key>
-                <rect>14,11,27,21</rect>
+                <rect>5,5,10,9</rect>
                 <key>scale9Paddings</key>
-                <rect>14,11,27,21</rect>
-                <key>scale9FromFile</key>
-                <false/>
-            </struct>
-            <key type="filename">game_atlas/face_button_down.png</key>
-            <key type="filename">game_atlas/face_button_up.png</key>
-            <struct type="IndividualSpriteSettings">
-                <key>pivotPoint</key>
-                <point_f>0.5,0.5</point_f>
-                <key>spriteScale</key>
-                <double>1</double>
-                <key>scale9Enabled</key>
-                <false/>
-                <key>scale9Borders</key>
-                <rect>12,12,25,25</rect>
-                <key>scale9Paddings</key>
-                <rect>12,12,25,25</rect>
+                <rect>5,5,10,9</rect>
                 <key>scale9FromFile</key>
                 <false/>
             </struct>
@@ -370,6 +369,52 @@
                 <rect>4,8,7,16</rect>
                 <key>scale9Paddings</key>
                 <rect>4,8,7,16</rect>
+                <key>scale9FromFile</key>
+                <false/>
+            </struct>
+            <key type="filename">game_atlas/message_panel.png</key>
+            <struct type="IndividualSpriteSettings">
+                <key>pivotPoint</key>
+                <point_f>0.5,0.5</point_f>
+                <key>spriteScale</key>
+                <double>1</double>
+                <key>scale9Enabled</key>
+                <false/>
+                <key>scale9Borders</key>
+                <rect>36,16,72,31</rect>
+                <key>scale9Paddings</key>
+                <rect>36,16,72,31</rect>
+                <key>scale9FromFile</key>
+                <false/>
+            </struct>
+            <key type="filename">game_atlas/pitchfork.png</key>
+            <struct type="IndividualSpriteSettings">
+                <key>pivotPoint</key>
+                <point_f>0.5,0.5</point_f>
+                <key>spriteScale</key>
+                <double>1</double>
+                <key>scale9Enabled</key>
+                <false/>
+                <key>scale9Borders</key>
+                <rect>1,4,3,7</rect>
+                <key>scale9Paddings</key>
+                <rect>1,4,3,7</rect>
+                <key>scale9FromFile</key>
+                <false/>
+            </struct>
+            <key type="filename">game_atlas/rat_0.png</key>
+            <key type="filename">game_atlas/rat_1.png</key>
+            <struct type="IndividualSpriteSettings">
+                <key>pivotPoint</key>
+                <point_f>0.5,0.5</point_f>
+                <key>spriteScale</key>
+                <double>1</double>
+                <key>scale9Enabled</key>
+                <false/>
+                <key>scale9Borders</key>
+                <rect>10,3,20,6</rect>
+                <key>scale9Paddings</key>
+                <rect>10,3,20,6</rect>
                 <key>scale9FromFile</key>
                 <false/>
             </struct>

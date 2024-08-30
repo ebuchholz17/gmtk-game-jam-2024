@@ -1,229 +1,250 @@
 game_atlas.png
-size: 248, 244
+size: 394, 122
 format: RGBA8888
 filter: Linear,Linear
 repeat: none
 archer_0
   rotate: false
-  xy: 98, 2
+  xy: 189, 5
   size: 16, 16
   orig: 16, 16
   offset: 0, 0
   index: -1
 archer_1
   rotate: false
-  xy: 81, 2
+  xy: 165, 5
   size: 15, 15
   orig: 15, 15
   offset: 0, 0
   index: -1
 arrow
   rotate: false
-  xy: 2, 2
+  xy: 2, 5
   size: 15, 5
   orig: 15, 5
   offset: 0, 0
   index: -1
+black_knight_0
+  rotate: false
+  xy: 100, 23
+  size: 24, 21
+  orig: 24, 21
+  offset: 0, 0
+  index: -1
+black_knight_1
+  rotate: false
+  xy: 126, 23
+  size: 24, 21
+  orig: 24, 21
+  offset: 0, 0
+  index: -1
 bubble_blue
   rotate: false
-  xy: 116, 2
+  xy: 207, 5
   size: 16, 16
   orig: 16, 16
   offset: 0, 0
   index: -1
 bubble_green
   rotate: false
-  xy: 134, 2
+  xy: 225, 5
   size: 16, 16
   orig: 16, 16
   offset: 0, 0
   index: -1
 bubble_purple
   rotate: false
-  xy: 152, 2
+  xy: 243, 5
   size: 16, 16
   orig: 16, 16
   offset: 0, 0
   index: -1
 bubble_red
   rotate: false
-  xy: 170, 2
+  xy: 261, 5
   size: 16, 16
   orig: 16, 16
   offset: 0, 0
   index: -1
 bubble_yellow
   rotate: false
-  xy: 188, 2
+  xy: 279, 5
   size: 16, 16
   orig: 16, 16
   offset: 0, 0
   index: -1
 button_down
   rotate: false
-  xy: 38, 20
-  size: 96, 32
-  orig: 96, 32
+  xy: 52, 57
+  size: 96, 33
+  orig: 96, 33
   offset: 0, 0
   index: -1
 button_down_small
   rotate: false
-  xy: 136, 20
+  xy: 170, 23
   size: 48, 32
   orig: 48, 32
   offset: 0, 0
   index: -1
 button_over
   rotate: false
-  xy: 2, 54
+  xy: 220, 23
   size: 96, 32
   orig: 96, 32
   offset: 0, 0
   index: -1
 button_over_small
   rotate: false
-  xy: 100, 54
+  xy: 318, 23
   size: 48, 32
   orig: 48, 32
   offset: 0, 0
   index: -1
 button_up
   rotate: false
-  xy: 150, 54
-  size: 96, 32
-  orig: 96, 32
+  xy: 150, 57
+  size: 96, 33
+  orig: 96, 33
   offset: 0, 0
   index: -1
 button_up_small
   rotate: false
-  xy: 2, 88
+  xy: 2, 57
   size: 48, 32
   orig: 48, 32
   offset: 0, 0
   index: -1
-diamond
+cannon_0
   rotate: false
-  xy: 206, 2
+  xy: 297, 5
   size: 16, 16
   orig: 16, 16
   offset: 0, 0
   index: -1
-dpad_down_down
+cannonball
   rotate: false
-  xy: 160, 132
-  size: 42, 54
-  orig: 42, 54
+  xy: 315, 5
+  size: 16, 16
+  orig: 16, 16
   offset: 0, 0
   index: -1
-dpad_down_up
+dashed_lines
   rotate: false
-  xy: 204, 132
-  size: 42, 54
-  orig: 42, 54
+  xy: 2, 2
+  size: 380, 1
+  orig: 380, 1
   offset: 0, 0
   index: -1
-dpad_left_down
+diamond
   rotate: false
-  xy: 52, 88
-  size: 54, 42
-  orig: 54, 42
+  xy: 333, 5
+  size: 16, 16
+  orig: 16, 16
   offset: 0, 0
   index: -1
-dpad_left_up
+farmer_0
   rotate: false
-  xy: 108, 88
-  size: 54, 42
-  orig: 54, 42
+  xy: 351, 5
+  size: 16, 16
+  orig: 16, 16
   offset: 0, 0
   index: -1
-dpad_right_down
+gargoyle_0
   rotate: false
-  xy: 164, 88
-  size: 54, 42
-  orig: 54, 42
+  xy: 56, 23
+  size: 20, 19
+  orig: 20, 19
   offset: 0, 0
   index: -1
-dpad_right_up
+gargoyle_1
   rotate: false
-  xy: 2, 132
-  size: 54, 42
-  orig: 54, 42
-  offset: 0, 0
-  index: -1
-dpad_up
-  rotate: false
-  xy: 2, 188
-  size: 42, 54
-  orig: 42, 54
-  offset: 0, 0
-  index: -1
-dpad_up_down
-  rotate: false
-  xy: 46, 188
-  size: 42, 54
-  orig: 42, 54
-  offset: 0, 0
-  index: -1
-dpad_up_up
-  rotate: false
-  xy: 90, 188
-  size: 42, 54
-  orig: 42, 54
-  offset: 0, 0
-  index: -1
-face_button_down
-  rotate: false
-  xy: 58, 132
-  size: 49, 49
-  orig: 49, 49
-  offset: 0, 0
-  index: -1
-face_button_up
-  rotate: false
-  xy: 109, 132
-  size: 49, 49
-  orig: 49, 49
+  xy: 78, 23
+  size: 20, 19
+  orig: 20, 19
   offset: 0, 0
   index: -1
 goblin_0
   rotate: false
-  xy: 224, 2
+  xy: 369, 5
   size: 16, 16
   orig: 16, 16
   offset: 0, 0
   index: -1
 goblin_1
   rotate: false
-  xy: 2, 20
+  xy: 2, 23
   size: 16, 16
   orig: 16, 16
   offset: 0, 0
   index: -1
 gold
   rotate: false
-  xy: 37, 2
+  xy: 121, 5
   size: 8, 13
   orig: 8, 13
   offset: 0, 0
   index: -1
 house
   rotate: false
-  xy: 20, 20
+  xy: 152, 23
   size: 16, 21
   orig: 16, 21
   offset: 0, 0
   index: -1
 house_destroyed
   rotate: false
-  xy: 19, 2
+  xy: 19, 5
   size: 16, 12
   orig: 16, 12
   offset: 0, 0
   index: -1
+knight_0
+  rotate: false
+  xy: 20, 23
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
 launcher
   rotate: false
-  xy: 47, 2
+  xy: 131, 5
   size: 32, 14
   orig: 32, 14
+  offset: 0, 0
+  index: -1
+message_panel
+  rotate: false
+  xy: 248, 57
+  size: 144, 63
+  orig: 144, 63
+  offset: 0, 0
+  index: -1
+pitchfork
+  rotate: false
+  xy: 182, 5
+  size: 5, 15
+  orig: 5, 15
+  offset: 0, 0
+  index: -1
+rat_0
+  rotate: false
+  xy: 37, 5
+  size: 40, 12
+  orig: 40, 12
+  offset: 0, 0
+  index: -1
+rat_1
+  rotate: false
+  xy: 79, 5
+  size: 40, 12
+  orig: 40, 12
+  offset: 0, 0
+  index: -1
+slash
+  rotate: false
+  xy: 38, 23
+  size: 16, 16
+  orig: 16, 16
   offset: 0, 0
   index: -1

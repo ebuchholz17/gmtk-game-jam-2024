@@ -20,7 +20,7 @@
 #define BUBBLE_QUEUE_LENGTH 5
 
 #define LAUNCHER_POS_X 192.0f 
-#define LAUNCHER_POS_Y 330.0f 
+#define LAUNCHER_POS_Y 314.0f 
 
 #define BUBBLE_LAUNCH_SPEED 320.0f
 #define BUBBLE_ZONE_WIDTH 384.0f 
@@ -68,9 +68,11 @@ typedef enum {
 } BubbleType;
 
 typedef enum {
-    UNIT_TYPE_ARCHER
+    UNIT_TYPE_ARCHER,
+    UNIT_TYPE_KNIGHT,
+    UNIT_TYPE_CANNON,
+    UNIT_TYPE_FARMER
 } UnitType;
-
 
 typedef struct Bubble {
     EntityID id;
@@ -121,15 +123,36 @@ typedef struct GridSlot {
 } GridSlot;
 
 typedef enum {
-    ENEMY_TYPE_GOBLIN
+    ENEMY_TYPE_GOBLIN,
+    ENEMY_TYPE_GARGOYLE,
+    ENEMY_TYPE_RAT,
+    ENEMY_TYPE_BLACK_KNIGHT,
+    ENEMY_TYPE_COUNT
 } EnemyType;
 
 typedef enum {
     ENEMY_STATE_WALKING,
     ENEMY_STATE_SUCKING_IN_BUBBLE,
     ENEMY_STATE_GROWING,
-    ENEMY_STATE_ATTACKING_BASE
+    ENEMY_STATE_ATTACKING_BASE,
+    ENEMY_STATE_DYING
 } EnemyState;
+
+typedef enum {
+    PROJECTILE_TYPE_NONE,
+    PROJECTILE_TYPE_ARROW,
+    PROJECTILE_TYPE_SLASH,
+    PROJECTILE_TYPE_CANNONBALL
+} ProjectileType;
+
+typedef enum {
+    UPGRADE_TYPE_NONE,
+    UPGRADE_TYPE_ARROW_ATK,
+    UPGRADE_TYPE_SLASH_ATK,
+    UPGRADE_TYPE_CANNONBALL_ATK,
+    UPGRADE_TYPE_FARMING,
+    UPGRADE_TYPE_COUNT
+} UpgradeType;
 
 typedef struct Enemy {
     EntityID id;
@@ -150,11 +173,14 @@ typedef struct Enemy {
     i32 size;
     f32 scale;
     vec2 startPos;
-} Enemy;
+    f32 speed;
 
-typedef enum {
-    PROJECTILE_TYPE_ARROW
-} ProjectileType;
+    UpgradeType weakness;
+    UpgradeType resists;
+
+    f32 walkTimer;
+    i32 walkFrame;
+} Enemy;
 
 typedef struct Button {
     char *upFrame;
@@ -180,11 +206,6 @@ typedef struct FloatingText {
     f32 t;
 } FloatingText;
 
-typedef enum {
-    UPGRADE_TYPE_NONE,
-    UPGRADE_TYPE_ARROW_ATK,
-    UPGRADE_TYPE_COUNT
-} UpgradeType;
 
 typedef struct Projectile {
     EntityID id;
@@ -200,9 +221,33 @@ typedef struct Projectile {
     char *frame;
 } Projectile;
 
+typedef struct EnemyWave {
+    i32 numEnemies;
+    f32 enemyProbs[ENEMY_TYPE_COUNT];
+    EnemyType bossType;
+    i32 bossSize;
+    b32 spawnedBoss;
+
+    f32 spawnTime;
+} EnemyWave;
+
+#define PARTICLE_BURST_TIME 0.2f
+
+typedef struct BubbleParticles {
+    EntityID id;
+    vec2 pos;
+    b32 active;
+
+    BubbleColor color;
+    f32 t;
+    f32 angles[5];
+} BubbleParticles;
 
 #define LIST_TYPE Enemy
+#include "../list.h"
 
+typedef Enemy *EnemyPtr;
+#define LIST_TYPE EnemyPtr
 #include "../list.h"
 
 #define LIST_TYPE Bubble
@@ -231,6 +276,17 @@ typedef GridSlot *GridSlotPtr;
 #define LIST_TYPE GridSlotPtr
 #include "../list.h"
 
+#define LIST_TYPE EnemyWave
+#include "../list.h"
+
+#define LIST_TYPE BubbleParticles
+#include "../list.h"
+
+typedef enum {
+    GAME_STATE_TITLE,
+    GAME_STATE_NORMAL
+} GameState;
+
 typedef struct bubble_game {
     GridSlot grid[GRID_NUM_ROWS * GRID_NUM_COLS];
     Bubble_list bubbles;
@@ -253,6 +309,23 @@ typedef struct bubble_game {
     FloatingText_list floatingTexts;
     i32 lives;
     UpgradeType upgrades[UPGRADE_TYPE_COUNT];
+    EnemyWave_list waves;
+    i32 waveIndex;
+
+    b32 win;
+    b32 gameOver;
+
+    BubbleParticles_list particles;
+    GameState state;
+    f32 gameEndTimer;
+    b32 reset;
+
+    b32 tooLowDanger;
+    f32 tooLowDangerTimer;
+    b32 lineRed;
+    f32 gameTime;
+    b32 bubblesBurst;
+    b32 isInitialized;
 } bubble_game;
 
 #endif

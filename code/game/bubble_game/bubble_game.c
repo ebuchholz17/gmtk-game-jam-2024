@@ -1,9 +1,71 @@
 #include "bubble_game.h"
 #include "../gng_sprites.h"
-#include <math.h> // TODO remove?
+
+// https://opensource.apple.com/source/Libm/Libm-315/Source/Intel/atan.c
+#include "atan.c"
 
 bubble_game *bubbleGame;
 mem_arena *scratchMemory;
+
+// https://stackoverflow.com/questions/3581528/how-is-the-square-root-function-implemented
+f32 squareRoot (f32 n){
+  // Max and min are used to take into account numbers less than 1
+    f32 lo = 1 < n ? 1 : n;
+    f32 hi = 1 > n ? 1 : n;
+    f32 mid;
+
+  // Update the bounds to be off the target by a factor of 10
+  while(100 * lo * lo < n) lo *= 10;
+  while(0.01 * hi * hi > n) hi *= 0.1;
+
+  for(int i = 0 ; i < 100 ; i++){
+      mid = (lo+hi)/2;
+      if(mid*mid == n) return mid;
+      if(mid*mid > n) hi = mid;
+      else lo = mid;
+  }
+  return mid;
+}
+
+// https://stackoverflow.com/questions/35183929/approximating-atan-without-a-math-library
+//f32 arctangent(f32 x)
+//{
+//    if (x > 1.0f) {
+//        x = 1.0f / x;
+//    }
+//    if (x < -1.0f) {
+//        x = 1.0f / x;
+//    }
+//    f32 result =x - (x*x*x)/3 + (x*x*x*x*x)/5 - (x*x*x*x*x*x*x)/7;
+//    if (result > 1.0f) {
+//        return 1.0f - result;
+//    }
+//    if (result < -1.0f) {
+//        return -1.0f - result;
+//    }
+//    return result;
+//}
+
+f32 arctangent2(f32 y, f32 x) {
+    if (x > 0.0f) {
+        return arctangent(y / x);
+    }
+    else if (x < 0.0f && y >= 0.0f) {
+        return arctangent(y / x) + PI;
+    }
+    else if (x < 0.0f && y < 0.0f) {
+        return arctangent(y / x) - PI;
+    }
+    else if (x == 0.0f && y > 0.0f) {
+        return PI / 2.0f;
+    }
+    else if (x == 0.0f && y < 0.0f) {
+        return -PI / 2.0f;
+    }
+    else {
+        return 0.0f;
+    }
+}
 
 ScratchMemMarker pushScratchMemory (void) {
     ScratchMemMarker result = {};
@@ -79,6 +141,37 @@ Bubble *spawnBubble (void) {
 void removeBubble (Bubble *bubble) {
     bubble->active = false;
     bubble->id.gen++;
+}
+
+BubbleParticles *spawnBubbleParticles (void) {
+    BubbleParticles *result = 0;
+    for (i32 i = 1; i < bubbleGame->particles.numValues; i++) {
+        BubbleParticles *particle = &bubbleGame->particles.values[i];
+        if (!particle->active) {
+            result = particle;
+        }
+    }
+
+    if (!result) {
+        BubbleParticles b = {};
+        b.id.val = bubbleGame->particles.numValues;
+        BubbleParticles_listPush(&bubbleGame->particles, b);
+        result = &bubbleGame->particles.values[bubbleGame->particles.numValues - 1];
+    }
+
+    // reset bubble
+    EntityID id = result->id;
+    *result = (BubbleParticles){};
+    result->id = id;
+
+    result->active = true;
+
+    return result;
+}
+
+void removeBubbleParticles (BubbleParticles *particles) {
+    particles->active = false;
+    particles->id.gen++;
 }
 
 Bubble *getBubbleByID (EntityID id) {
@@ -247,7 +340,7 @@ void populateGrid (void) {
         }
     }
 
-    for (i32 i = 0; i < 7; i++) { 
+    for (i32 i = 6; i >= 0; i--) { 
         spawnBubbleRow(i);
     }
 }
@@ -262,7 +355,9 @@ void loadBubblesIntoQueue (void) {
 }
 
 void initBubbleGame (bubble_game *bg, mem_arena *memory) {
+    
     bubbleGame = bg;
+    bg->isInitialized = true;
     bubbleGame->bubbles = Bubble_listInit(memory, MAX_NUM_BUBBLES);
 
     // Put bubble in the 0 slot, not to be used
@@ -285,8 +380,7 @@ void initBubbleGame (bubble_game *bg, mem_arena *memory) {
     e.id.val = bubbleGame->enemies.numValues;
     Enemy_listPush(&bubbleGame->enemies, e);
 
-    bubbleGame->timeToSpawnNextEnemy = 10.0f;
-    bubbleGame->enemySpawnTimer = bubbleGame->timeToSpawnNextEnemy;
+    bubbleGame->enemySpawnTimer = 0.0f;
 
     bubbleGame->projectiles = Projectile_listInit(memory, MAX_NUM_PROJECTILES);
 
@@ -296,11 +390,113 @@ void initBubbleGame (bubble_game *bg, mem_arena *memory) {
     bubbleGame->gold = 150;
 
     bubbleGame->lives = MAX_LIVES;
+
+    bubbleGame->waves = EnemyWave_listInit(memory, 20);
+    EnemyWave_listPush(&bubbleGame->waves, (EnemyWave){
+        .numEnemies = 10,
+        .enemyProbs = {
+            1.0f,
+            0.0f,
+            0.0f,
+            0.0f
+        },
+        .bossType = ENEMY_TYPE_GOBLIN,
+        .bossSize = 5,
+        .spawnTime = 10.0f
+    });
+    EnemyWave_listPush(&bubbleGame->waves, (EnemyWave){
+        .numEnemies = 10,
+        .enemyProbs = {
+            0.5f,
+            0.5f,
+            0.0f,
+            0.0f
+        },
+        .bossType = ENEMY_TYPE_GARGOYLE,
+        .bossSize = 5,
+        .spawnTime = 9.0f
+    });
+    EnemyWave_listPush(&bubbleGame->waves, (EnemyWave){
+        .numEnemies = 10,
+        .enemyProbs = {
+            0.65f,
+            0.25f,
+            0.1f,
+            0.0f
+        },
+        .bossType = ENEMY_TYPE_RAT,
+        .bossSize = 5,
+        .spawnTime = 9.0f
+    });
+    EnemyWave_listPush(&bubbleGame->waves, (EnemyWave){
+        .numEnemies = 20,
+        .enemyProbs = {
+            0.5f,
+            0.20f,
+            0.20f,
+            0.1f
+        },
+        .bossType = ENEMY_TYPE_BLACK_KNIGHT,
+        .bossSize = 20,
+        .spawnTime = 8.0f
+    });
+    EnemyWave_listPush(&bubbleGame->waves, (EnemyWave){
+        .numEnemies = 15,
+        .enemyProbs = {
+            1.0f,
+            0.0f,
+            0.0f,
+            0.0f
+        },
+        .bossType = ENEMY_TYPE_GOBLIN,
+        .bossSize = 10,
+        .spawnTime = 7.0f
+    });
+    EnemyWave_listPush(&bubbleGame->waves, (EnemyWave){
+        .numEnemies = 15,
+        .enemyProbs = {
+            0.5f,
+            0.5f,
+            0.0f,
+            0.0f
+        },
+        .bossType = ENEMY_TYPE_GARGOYLE,
+        .bossSize = 10,
+        .spawnTime = 7.0f
+    });
+    EnemyWave_listPush(&bubbleGame->waves, (EnemyWave){
+        .numEnemies = 15,
+        .enemyProbs = {
+            0.65f,
+            0.25f,
+            0.1f,
+            0.0f
+        },
+        .bossType = ENEMY_TYPE_RAT,
+        .bossSize = 10,
+        .spawnTime = 7.0f
+    });
+    EnemyWave_listPush(&bubbleGame->waves, (EnemyWave){
+        .numEnemies = 40,
+        .enemyProbs = {
+            0.5f,
+            0.20f,
+            0.20f,
+            0.1f
+        },
+        .bossType = ENEMY_TYPE_BLACK_KNIGHT,
+        .bossSize = 30,
+        .spawnTime = 6.0f
+    });
+    bubbleGame->waveIndex = 0;
+    bubbleGame->waveIndex = 0;
+
+    bubbleGame->particles = BubbleParticles_listInit(memory, MAX_NUM_BUBBLES);
 }
 
 f32 vec2Length (vec2 a) {
     f32 mag = a.x * a.x + a.y * a.y;
-    return sqrtf(mag);
+    return squareRoot(mag);
 }
 
 vec2 vec2Normalize (vec2 a) {
@@ -502,6 +698,18 @@ void checkForBubblesThatShouldFall (void) {
     popScratchMemory(m);
 }
 
+void burstBubble (Bubble *bubble) {
+    if (bubble->type == BUBBLE_TYPE_NORMAL) {
+        bubbleGame->bubblesBurst = true;
+        BubbleParticles *particles = spawnBubbleParticles();
+        particles->pos = bubble->pos;
+        particles->color = bubble->color;
+        for (i32 i = 0; i < 5; i++) {
+            particles->angles[i] = randomF32();
+        }
+    }
+}
+
 void checkForMatchesAtRowCol (i32 row, i32 col) {
     Bubble *bubble = tryGetBubbleAtRowCol(row, col);
     if (bubble) {
@@ -552,6 +760,8 @@ void checkForMatchesAtRowCol (i32 row, i32 col) {
                 GridSlot *slot = &bubbleGame->grid[bubbleToCheck->row * GRID_NUM_COLS + bubbleToCheck->col];
                 slot->id = (EntityID){};
                 removeBubble(bubbleToCheck);
+
+                burstBubble(bubbleToCheck);
             }
             i32 gold = bubblesToCheck.numValues * POPPED_BUBBLE_GOLD;
             bubbleGame->gold += gold;
@@ -620,13 +830,37 @@ void setUnitProps (Bubble *bubble) {
             bubble->cooldownDuration = 2.0f;
             bubble->projectileSpeed = 128.0f;
         } break;
+        case UNIT_TYPE_KNIGHT: {
+            bubble->range = 64.0f;
+            bubble->cooldownDuration = 1.0f;
+            bubble->projectileSpeed = 128.0f;
+        } break;
+        case UNIT_TYPE_CANNON: {
+            bubble->range = 256.0f;
+            bubble->cooldownDuration = 4.0f;
+            bubble->projectileSpeed = 96.0f;
+        } break;
+        case UNIT_TYPE_FARMER: {
+            bubble->range = 0.0f;
+            bubble->cooldownDuration = 5.0f;
+            bubble->projectileSpeed = 1.0f;
+        } break;
     }
 }
 
 f32 damageByUpgradeType (UpgradeType ug) {
     switch (ug) {
         case UPGRADE_TYPE_ARROW_ATK: {
-            return 10.0f + bubbleGame->upgrades[UPGRADE_TYPE_ARROW_ATK] * 2.0f;
+            return 8.0f + bubbleGame->upgrades[UPGRADE_TYPE_ARROW_ATK] * 2.0f;
+        } break;
+        case UPGRADE_TYPE_SLASH_ATK: {
+            return 12.0f + bubbleGame->upgrades[UPGRADE_TYPE_SLASH_ATK] * 4.0f;
+        } break;
+        case UPGRADE_TYPE_CANNONBALL_ATK: {
+            return 20.0f + bubbleGame->upgrades[UPGRADE_TYPE_ARROW_ATK] * 5.0f;
+        } break;
+        case UPGRADE_TYPE_FARMING: {
+            return 0;
         } break;
     }
     return 0.0f;
@@ -635,15 +869,66 @@ f32 damageByUpgradeType (UpgradeType ug) {
 void assignEnemyProps (Enemy *e) {
     switch (e->type) {
         case ENEMY_TYPE_GOBLIN: {
-            e->hitPoints = 50.0f;
+            e->hitPoints = 80.0f;
             e->baseHitPoints = e->hitPoints;
             e->maxHitPoints = e->hitPoints;
             e->radius = 7.0f;
             e->baseRadius = e->radius;
             e->scale = 1.0f;
             e->damage = 1;
+            e->speed = 10.0f;
+            e->weakness = UPGRADE_TYPE_NONE;
+            e->resists = UPGRADE_TYPE_NONE;
+        } break;
+        case ENEMY_TYPE_GARGOYLE: {
+            e->hitPoints = 100.0f;
+            e->baseHitPoints = e->hitPoints;
+            e->maxHitPoints = e->hitPoints;
+            e->radius = 7.0f;
+            e->baseRadius = e->radius;
+            e->scale = 1.0f;
+            e->damage = 1;
+            e->speed = 10.0f;
+            e->weakness = UPGRADE_TYPE_ARROW_ATK;
+            e->resists = UPGRADE_TYPE_NONE;
+        } break;
+        case ENEMY_TYPE_RAT: {
+            e->hitPoints = 30.0f;
+            e->baseHitPoints = e->hitPoints;
+            e->maxHitPoints = e->hitPoints;
+            e->radius = 7.0f;
+            e->baseRadius = e->radius;
+            e->scale = 1.0f;
+            e->damage = 1;
+            e->speed = 25.0f;
+            e->weakness = UPGRADE_TYPE_NONE;
+            e->resists = UPGRADE_TYPE_NONE;
+        } break;
+        case ENEMY_TYPE_BLACK_KNIGHT: {
+            e->hitPoints = 150.0f;
+            e->baseHitPoints = e->hitPoints;
+            e->maxHitPoints = e->hitPoints;
+            e->radius = 9.0f;
+            e->baseRadius = e->radius;
+            e->scale = 1.0f;
+            e->damage = 2;
+            e->speed = 5.0f;
+            e->weakness = UPGRADE_TYPE_CANNONBALL_ATK;
+            e->resists = UPGRADE_TYPE_ARROW_ATK;
         } break;
     }
+}
+
+EnemyType getEnemyTypeByProbabilities (f32 *enemyProbs) {
+    f32 random = randomF32();
+    f32 prob = 0.0f;
+    for (i32 i = 0; i < ENEMY_TYPE_COUNT; i++) {
+        prob += enemyProbs[i];
+        if (random < prob) {
+            return i;
+        }
+    }
+    return 0;
 }
 
 b32 enemyTouchingSlot (Enemy *enemy, GridSlot *slot) {
@@ -697,6 +982,7 @@ void enemyTrySuckingBubble (Enemy *enemy) {
             Bubble *bubble = getBubbleByID(slot->id);
             if (bubble) {
                 if (enemy->size >= ENEMY_MAX_SIZE) {
+                    burstBubble(bubble);
                     removeBubble(bubble);
                 }
                 else {
@@ -735,11 +1021,20 @@ void updateEnemySuckingBubble (Enemy *enemy, f32 dt) {
             enemy->size++;
             enemy->t = 0.0f;
             enemy->state = ENEMY_STATE_GROWING;
+            soundManPlaySound("sfx_enemy_grow");
         }
     }
     else {
         enemy->state = ENEMY_STATE_WALKING;
     }
+}
+
+void setEnemyPropsForScale (Enemy *enemy) {
+    enemy->radius = enemy->baseRadius * enemy->scale;
+    f32 percentHitpoints = (f32)enemy->hitPoints / (f32)enemy->maxHitPoints;
+    enemy->maxHitPoints = enemy->baseHitPoints * enemy->scale;
+    enemy->hitPoints = (i32)((f32)enemy->maxHitPoints * percentHitpoints);
+    enemy->damage = 1 + enemy->size / 3;
 }
 
 void updateEnemyGrowing (Enemy *enemy, f32 dt) {
@@ -757,11 +1052,7 @@ void updateEnemyGrowing (Enemy *enemy, f32 dt) {
 
     if (done) {
         enemy->state = ENEMY_STATE_WALKING;
-        enemy->radius = enemy->baseRadius * enemy->scale;
-        f32 percentHitpoints = (f32)enemy->hitPoints / (f32)enemy->maxHitPoints;
-        enemy->maxHitPoints = enemy->baseHitPoints * enemy->scale;
-        enemy->hitPoints = (i32)((f32)enemy->maxHitPoints * percentHitpoints);
-        enemy->damage = 1 + enemy->size / 3;
+        setEnemyPropsForScale(enemy);
     }
 }
 
@@ -775,12 +1066,16 @@ void updateEnemyAttackingBase (Enemy *enemy, f32 dt) {
 
     f32 t = enemy->t / ENEMY_GROW_TIME;
     vec2 startPos = enemy->startPos;
-    vec2 endPos = (vec2){ .x = 424.0f, .y = 176.0f };
+    vec2 endPos = (vec2){ .x = 408.0f, .y = 160.0f };
     enemy->pos = vec2Add(vec2ScalarMul((1.0f - t), startPos), 
                          vec2ScalarMul(t, endPos));
     if (done) {
         removeEnemy(enemy);
         bubbleGame->lives -= enemy->damage;
+        soundManPlaySound("sfx_house_destroyed");
+        if (bubbleGame->lives <= 0) {
+            bubbleGame->gameOver = true;
+        }
     }
 }
 
@@ -789,6 +1084,18 @@ void assignProjectileProps (Projectile *p, Bubble *b) {
     p->damage = b->projectileDamage;
     switch (b->unitType) {
         case UNIT_TYPE_ARCHER: {
+            p->frame = "arrow";
+            p->upgradeType = UPGRADE_TYPE_ARROW_ATK;
+        } break;
+        case UNIT_TYPE_KNIGHT: {
+            p->frame = "slash";
+            p->upgradeType = UPGRADE_TYPE_SLASH_ATK;
+        } break;
+        case UNIT_TYPE_CANNON: {
+            p->frame = "cannonball";
+            p->upgradeType = UPGRADE_TYPE_CANNONBALL_ATK;
+        } break;
+        case UNIT_TYPE_FARMER: {
             p->frame = "arrow";
             p->upgradeType = UPGRADE_TYPE_ARROW_ATK;
         } break;
@@ -813,7 +1120,13 @@ b32 doButton (Button b, vec3 pointerPos, b32 pointerDown, b32 pointerJustDown) {
 i32 costForUnit (UnitType unitType) {
     switch (unitType) {
     case UNIT_TYPE_ARCHER: 
-       return 100;
+       return 75;
+    case UNIT_TYPE_KNIGHT:
+       return 75;
+    case UNIT_TYPE_CANNON: 
+       return 75;
+    case UNIT_TYPE_FARMER: 
+       return 75;
     }
     return 0;
 }
@@ -847,6 +1160,8 @@ void doUnitButton (b32 *boughtSomething, vec2 buttonPos, UnitType unitType, char
                 .unitType = unitType
             };
             BubbleQueueItem_listInsert(&bubbleGame->bubbleQueue, item, 0);
+
+            soundManPlaySound("sfx_bought_unit");
         }
     }
 }
@@ -870,9 +1185,71 @@ void doUpgradeUI (b32 *boughtSomething, vec2 buttonPos, UpgradeType upgradeType,
         if (bubbleGame->diamonds >= 1) {
             bubbleGame->diamonds -= 1;
             bubbleGame->upgrades[upgradeType]++;
+
+            soundManPlaySound("sfx_bought_unit");
         }
     }
 }
+
+void splashDamageNearbyEnemies (Projectile *p) {
+    for (i32 enemyIndex = 0; enemyIndex < bubbleGame->enemies.numValues; enemyIndex++) {
+        Enemy *enemy = &bubbleGame->enemies.values[enemyIndex];
+        if (enemy->active) {
+            vec2 projToEnemy = vec2Subtract(enemy->pos, p->pos);
+            f32 distToEnemy = vec2Length(projToEnemy);
+            if (distToEnemy <= 36.0f) {
+
+                f32 damage = damageByUpgradeType(p->upgradeType);
+                damage /= 5.0f;
+                if (enemy->resists == p->upgradeType) {
+                    damage /= 2.0f;
+                }
+                if (enemy->weakness == p->upgradeType) {
+                    damage *= 2.0f;
+                }
+                enemy->hitPoints -= damage;
+
+                FloatingText *ft = spawnFloatingText();
+                if (ft) {
+                    ft->amount = (i32)damage;
+                    ft->icon = 0;
+                    ft->startPos = enemy->pos;
+                }
+
+                if (enemy->hitPoints <= 0.0f) {
+                    Bubble *suckedBubble = getBubbleByID(enemy->suckingBubbleID);
+                    if (suckedBubble) {
+                        suckedBubble->falling = true;
+                    }
+                    enemy->state = ENEMY_STATE_DYING;
+                    enemy->t = 0.0f;
+                soundManPlaySound("sfx_enemy_killed");
+                }
+            }
+        }
+    }
+}
+
+void updateDyingEnemy (Enemy *enemy, f32 dt) {
+    enemy->t += dt;
+    if (enemy->t >= 0.5f) {
+        removeEnemy(enemy);
+    }
+}
+
+void sortEnemies (EnemyPtr_list *sortedEnemies) {
+    for (int i = 0; i < sortedEnemies->numValues; ++i) {
+        for (int j = i; j > 0; --j) {
+            Enemy *first = sortedEnemies->values[j-1];
+            Enemy *second = sortedEnemies->values[j];
+            if (second->pos.x > first->pos.x) {
+                sortedEnemies->values[j-1] = second;
+                sortedEnemies->values[j] = first;
+            }
+        }
+    }
+}
+
 
 void updateBubbleGame (bubble_game *bg, game_input *input, 
                        virtual_input *vInput, f32 dt, plat_api platAPI, mem_arena *memory,
@@ -880,14 +1257,27 @@ void updateBubbleGame (bubble_game *bg, game_input *input,
 {
     scratchMemory = sm;
 
+        bubbleGame->bubblesBurst = false;
+
+    if (bubbleGame->state == GAME_STATE_TITLE) {
+        if (input->pointerJustDown) {
+            bubbleGame->state = GAME_STATE_NORMAL;
+        }
+        return;
+    }
+
+    if (bubbleGame->gameOver || bubbleGame->win) {
+        bubbleGame->gameEndTimer += dt;
+        if (bubbleGame->gameEndTimer > 1.0f && input->pointerJustDown) {
+            bubbleGame->reset = true;
+        }
+    }
+
+
     mat3x3 gameTransform = spriteManPeekMatrix();
     mat3x3 invGameTransform = mat3x3Inv(gameTransform);
-
     vec3 localPointerPos = (vec3){ (f32)input->pointerX, (f32)input->pointerY, 1.0f };
     localPointerPos = vec3MatrixMul(invGameTransform, localPointerPos);
-
-    bubbleGame->launcherTarget.x = localPointerPos.x;
-    bubbleGame->launcherTarget.y = localPointerPos.y;
 
     // store
     bubbleGame->buttons.numValues = 0;
@@ -895,45 +1285,72 @@ void updateBubbleGame (bubble_game *bg, game_input *input,
 
     doUnitButton(&boughtSomething, (vec2){ .x = 416.0f, .y = 224.0f}, UNIT_TYPE_ARCHER, 
                  "archer_0", localPointerPos, input->pointerDown, input->pointerJustDown);
-    doUnitButton(&boughtSomething, (vec2){ .x = 528.0f, .y = 224.0f}, UNIT_TYPE_ARCHER, 
-                 "archer_0", localPointerPos, input->pointerDown, input->pointerJustDown);
-    doUnitButton(&boughtSomething, (vec2){ .x = 416.0f, .y = 272.0f}, UNIT_TYPE_ARCHER, 
-                 "archer_0", localPointerPos, input->pointerDown, input->pointerJustDown);
-    doUnitButton(&boughtSomething, (vec2){ .x = 528.0f, .y = 272.0f}, UNIT_TYPE_ARCHER, 
-                 "archer_0", localPointerPos, input->pointerDown, input->pointerJustDown);
+    doUnitButton(&boughtSomething, (vec2){ .x = 528.0f, .y = 224.0f}, UNIT_TYPE_KNIGHT, 
+                 "knight_0", localPointerPos, input->pointerDown, input->pointerJustDown);
+    doUnitButton(&boughtSomething, (vec2){ .x = 416.0f, .y = 272.0f}, UNIT_TYPE_CANNON, 
+                 "cannon_0", localPointerPos, input->pointerDown, input->pointerJustDown);
+    doUnitButton(&boughtSomething, (vec2){ .x = 528.0f, .y = 272.0f}, UNIT_TYPE_FARMER, 
+                 "farmer_0", localPointerPos, input->pointerDown, input->pointerJustDown);
 
     doUpgradeUI(&boughtSomething, (vec2){ .x = 416.0f, .y = 48.0f}, UPGRADE_TYPE_ARROW_ATK, 
                  "arrow", localPointerPos, input->pointerDown, input->pointerJustDown);
-    doUpgradeUI(&boughtSomething, (vec2){ .x = 528.0f, .y = 48.0f}, UPGRADE_TYPE_ARROW_ATK, 
-                 "arrow", localPointerPos, input->pointerDown, input->pointerJustDown);
-    doUpgradeUI(&boughtSomething, (vec2){ .x = 416.0f, .y = 96.0f}, UPGRADE_TYPE_ARROW_ATK, 
-                 "arrow", localPointerPos, input->pointerDown, input->pointerJustDown);
-    doUpgradeUI(&boughtSomething, (vec2){ .x = 528.0f, .y = 96.0f}, UPGRADE_TYPE_ARROW_ATK, 
-                 "arrow", localPointerPos, input->pointerDown, input->pointerJustDown);
+    doUpgradeUI(&boughtSomething, (vec2){ .x = 528.0f, .y = 48.0f}, UPGRADE_TYPE_SLASH_ATK, 
+                 "slash", localPointerPos, input->pointerDown, input->pointerJustDown);
+    doUpgradeUI(&boughtSomething, (vec2){ .x = 416.0f, .y = 96.0f}, UPGRADE_TYPE_CANNONBALL_ATK, 
+                 "cannonball", localPointerPos, input->pointerDown, input->pointerJustDown);
+    doUpgradeUI(&boughtSomething, (vec2){ .x = 528.0f, .y = 96.0f}, UPGRADE_TYPE_FARMING,
+                 "pitchfork", localPointerPos, input->pointerDown, input->pointerJustDown);
+
+    if (bubbleGame->win) {
+        return;
+    }
+
+    bubbleGame->gameTime += dt;
+
+    spriteManPushTransform((sprite_transform){
+            .pos = (vec2){ .x = 16.0f, .y = 16.0f },
+            .scale = 1.0f
+    });
+
+    gameTransform = spriteManPeekMatrix();
+    invGameTransform = mat3x3Inv(gameTransform);
+    localPointerPos = (vec3){ (f32)input->pointerX, (f32)input->pointerY, 1.0f };
+    localPointerPos = vec3MatrixMul(invGameTransform, localPointerPos);
+
+    bubbleGame->launcherTarget.x = localPointerPos.x;
+    bubbleGame->launcherTarget.y = localPointerPos.y;
+
+
+    spriteManPopMatrix();
 
     // launch bubbles
     if (input->pointerJustDown && !boughtSomething) {
-        Bubble *bubble = spawnBubble();
-        
-        BubbleQueueItem queueItem =  BubbleQueueItem_listSplice(&bubbleGame->bubbleQueue, 0);
-        bubble->type = queueItem.type;
-        if (bubble->type == BUBBLE_TYPE_NORMAL) {
-            bubble->color = queueItem.color;
-        }
-        else if (bubble->type == BUBBLE_TYPE_UNIT) {
-            bubble->unitType = queueItem.unitType;
-            setUnitProps(bubble);
-        }
-        loadBubblesIntoQueue();
-
-        bubble->pos = (vec2){ .x = LAUNCHER_POS_X, .y = LAUNCHER_POS_Y };
-        bubble->flying = true;
         vec2 vel = (vec2){ bubbleGame->launcherTarget.x - LAUNCHER_POS_X, bubbleGame->launcherTarget.y - LAUNCHER_POS_Y} ;
-        vel = vec2Normalize(vel);
-        vel = vec2ScalarMul(BUBBLE_LAUNCH_SPEED, vel);
-        bubble->vel = vel;
+        if (vel.y < 0) {
+            Bubble *bubble = spawnBubble();
+            
+            BubbleQueueItem queueItem =  BubbleQueueItem_listSplice(&bubbleGame->bubbleQueue, 0);
+            bubble->type = queueItem.type;
+            if (bubble->type == BUBBLE_TYPE_NORMAL) {
+                bubble->color = queueItem.color;
+            }
+            else if (bubble->type == BUBBLE_TYPE_UNIT) {
+                bubble->unitType = queueItem.unitType;
+                setUnitProps(bubble);
+            }
+            loadBubblesIntoQueue();
 
-        bubbleGame->bubblesTilDrop--;
+            bubble->pos = (vec2){ .x = LAUNCHER_POS_X, .y = LAUNCHER_POS_Y };
+            bubble->flying = true;
+            vel = vec2Normalize(vel);
+            vel = vec2ScalarMul(BUBBLE_LAUNCH_SPEED, vel);
+
+            bubble->vel = vel;
+
+            bubbleGame->bubblesTilDrop--;
+
+            soundManPlaySound("sfx_bubble_launch");
+        }
     }
 
     // updated launched bubbles
@@ -974,6 +1391,7 @@ void updateBubbleGame (bubble_game *bg, game_input *input,
                         else {
                             insertBubbleIntoGridAtRowCol(bubble, gridCoord.row, gridCoord.col);
                             checkForMatchesAtRowCol(gridCoord.row, gridCoord.col);
+                            soundManPlaySound("sfx_bubble_land");
                         }
 
                         break;
@@ -1071,7 +1489,7 @@ void updateBubbleGame (bubble_game *bg, game_input *input,
                 else {
                     i32 gold = DROPPED_BUBBLE_GOLD;
                     if (bubble->type == BUBBLE_TYPE_UNIT) {
-                        gold = costForUnit(bubble->unitType) / 3;
+                        gold = costForUnit(bubble->unitType) / 2;
                     }
                     bubbleGame->gold += gold;
 
@@ -1092,23 +1510,49 @@ void updateBubbleGame (bubble_game *bg, game_input *input,
 
     // Enemies
     // Spawn enemies
-    bubbleGame->enemySpawnTimer -= dt;
-    if (bubbleGame->enemySpawnTimer <= 0) {
-        bubbleGame->enemySpawnTimer = bubbleGame->timeToSpawnNextEnemy;
-        Enemy *enemy = spawnEnemy();
-        enemy->pos.x = 0.0f;
-        enemy->pos.y = ENEMY_SPAWN_Y - (ENEMY_SPAWN_RANGE / 2.0f) + randomF32() * ENEMY_SPAWN_RANGE;
-        enemy->type = ENEMY_TYPE_GOBLIN;
-        assignEnemyProps(enemy);
+    EnemyWave *wave = &bubbleGame->waves.values[bubbleGame->waveIndex];
+    bubbleGame->enemySpawnTimer += dt;
+    if (bubbleGame->enemySpawnTimer >= wave->spawnTime) {
+        if (wave->numEnemies > 0) {
+            wave->numEnemies--;
+            bubbleGame->enemySpawnTimer = 0.0f;
+            Enemy *enemy = spawnEnemy();
+            enemy->pos.x = -16.0f;
+            enemy->pos.y = ENEMY_SPAWN_Y - (ENEMY_SPAWN_RANGE / 2.0f) + randomF32() * ENEMY_SPAWN_RANGE;
+            enemy->type = getEnemyTypeByProbabilities(wave->enemyProbs);
+            assignEnemyProps(enemy);
+        }
+        else if (!wave->spawnedBoss) {
+            bubbleGame->enemySpawnTimer = 0.0f;
+
+            Enemy *enemy = spawnEnemy();
+            enemy->pos.x = 0.0f;
+            enemy->pos.y = ENEMY_SPAWN_Y - (ENEMY_SPAWN_RANGE / 2.0f) + randomF32() * ENEMY_SPAWN_RANGE;
+            enemy->type = wave->bossType;
+            assignEnemyProps(enemy);
+
+            enemy->size = wave->bossSize;
+            enemy->scale = 1.0f + (enemy->size) * 0.2f;
+            setEnemyPropsForScale(enemy);
+
+            wave->spawnedBoss = true;
+        }
     }
 
-    unmarkSlots();
     for (i32 i = 0; i < bubbleGame->enemies.numValues; i++) {
         Enemy *enemy = &bubbleGame->enemies.values[i];
         if (enemy->active) {
+
+            f32 walkSlowFactor = 1.0f / enemy->scale * (enemy->speed / 10.0f);
+            enemy->walkTimer += dt * walkSlowFactor;
+            if (enemy->walkTimer >= 0.5f) {
+                enemy->walkTimer = 0.0f;
+                enemy->walkFrame = (enemy->walkFrame + 1) % 2;
+            }
+
             switch (enemy->state) {
                 case ENEMY_STATE_WALKING: {
-                    f32 enemySpeed = 10.0f;
+                    f32 enemySpeed = enemy->speed;
                     enemy->pos.x += enemySpeed * dt;
 
                     if (enemy->pos.x >= BASE_START_X) {
@@ -1117,6 +1561,8 @@ void updateBubbleGame (bubble_game *bg, game_input *input,
                         enemy->state = ENEMY_STATE_ATTACKING_BASE;
                     }
                     else {
+                        // TODO more efficient
+                        unmarkSlots();
                         enemyTrySuckingBubble(enemy);
                     }
                 } break;
@@ -1129,37 +1575,106 @@ void updateBubbleGame (bubble_game *bg, game_input *input,
                 case ENEMY_STATE_ATTACKING_BASE: {
                     updateEnemyAttackingBase(enemy, dt);
                 } break;
+                case ENEMY_STATE_DYING: {
+                    updateDyingEnemy(enemy, dt);
+                } break;
             }
         }
     }
+
+    ScratchMemMarker m = pushScratchMemory();
+
+    EnemyPtr_list sortedEnemies = EnemyPtr_listInit(scratchMemory, bubbleGame->enemies.numValues);
+    for (i32 enemyIndex = 0; enemyIndex < bubbleGame->enemies.numValues; enemyIndex++) {
+        Enemy *enemy = &bubbleGame->enemies.values[enemyIndex];
+        if (enemy->active && enemy->state != ENEMY_STATE_DYING) {
+            EnemyPtr_listPush(&sortedEnemies, enemy);
+        }
+    }
+    sortEnemies(&sortedEnemies);
 
     // Units
     for (i32 bubbleIndex = 0; bubbleIndex < bubbleGame->bubbles.numValues; bubbleIndex++) {
         Bubble *bubble = &bubbleGame->bubbles.values[bubbleIndex];
-        if (bubble->active && bubble->type == BUBBLE_TYPE_UNIT) {
+        if (bubble->active && bubble->type == BUBBLE_TYPE_UNIT && bubble->unitType != UNIT_TYPE_FARMER) {
             bubble->cooldownTimer -= dt;
             if (bubble->cooldownTimer <= 0) {
                 // TODO sort enemies?
-                for (i32 enemyIndex = 0; enemyIndex < bubbleGame->enemies.numValues; enemyIndex++) {
-                    Enemy *enemy = &bubbleGame->enemies.values[enemyIndex];
+                Enemy *closestEnemy = 0;
+                f32 maxDist = 99999.0f;
+
+                for (i32 enemyIndex = 0; enemyIndex < sortedEnemies.numValues; enemyIndex++) {
+                    Enemy *enemy = sortedEnemies.values[enemyIndex];
                     if (enemy->active) {
                         vec2 bubbleToEnemy = vec2Subtract(enemy->pos, bubble->pos);
-                        f32 distToEnemy = vec2Length(bubbleToEnemy);
-                        if (distToEnemy <= bubble->range) {
-                            bubble->cooldownTimer = bubble->cooldownDuration;
-
-                            Projectile *p = spawnProjectile();
-                            p->target = enemy->id;
-                            p->pos = bubble->pos;
-
-                            assignProjectileProps(p, bubble);
+                        if (bubbleToEnemy.x - enemy->radius > bubble->range) {
+                            continue;
+                        }
+                        if (bubbleToEnemy.x + enemy->radius < -bubble->range) {
                             break;
                         }
+                        f32 distToEnemy = vec2Length(bubbleToEnemy);
+                        if (distToEnemy < maxDist) {
+                            closestEnemy = enemy;
+                            maxDist = distToEnemy;
+                        }
+                    }
+                }
+
+                if (closestEnemy) {
+                    Enemy *enemy = closestEnemy;
+                    vec2 bubbleToEnemy = vec2Subtract(enemy->pos, bubble->pos);
+                    f32 distToEnemy = vec2Length(bubbleToEnemy);
+
+                    if (distToEnemy <= bubble->range + enemy->radius) {
+                        bubble->cooldownTimer = bubble->cooldownDuration;
+
+                        Projectile *p = spawnProjectile();
+                        p->target = enemy->id;
+                        p->pos = bubble->pos;
+
+                        assignProjectileProps(p, bubble);
+
+                        switch (p->upgradeType) {
+                            case UPGRADE_TYPE_ARROW_ATK: {
+                                                             soundManPlaySound("sfx_arrow");
+
+                                                         } break;
+                            case UPGRADE_TYPE_SLASH_ATK: {
+                                                             soundManPlaySound("sfx_slash");
+
+                                                         } break;
+                            case UPGRADE_TYPE_CANNONBALL_ATK: {
+                                                             soundManPlaySound("sfx_cannon");
+
+                                                         } break;
+
+                        }
+                        break;
                     }
                 }
             }
         }
+        if (bubble->active && bubble->type == BUBBLE_TYPE_UNIT && bubble->unitType == UNIT_TYPE_FARMER) {
+            bubble->cooldownTimer -= dt;
+            if (bubble->cooldownTimer <= 0) {
+                bubble->cooldownTimer = bubble->cooldownDuration;
+
+                i32 goldAmt = 5 + bubbleGame->upgrades[UPGRADE_TYPE_FARMING] * 1;
+                bubbleGame->gold += goldAmt;
+
+                FloatingText *ft = spawnFloatingText();
+                if (ft) {
+                    ft->amount = goldAmt;
+                    ft->icon = "gold";
+                    ft->startPos = bubble->pos;
+                }
+            }
+        }
     }
+
+    // remove sorted enemy list
+    popScratchMemory(m);
 
     // Projectiles
     for (i32 projectileIndex = 0; projectileIndex < bubbleGame->projectiles.numValues; projectileIndex++) {
@@ -1172,7 +1687,19 @@ void updateBubbleGame (bubble_game *bg, game_input *input,
                 if (toEnemyLength < 1.5f) {
 
                     f32 damage = damageByUpgradeType(projectile->upgradeType);
+                    if (enemy->resists == projectile->upgradeType) {
+                        damage /= 2.0f;
+                    }
+                    if (enemy->weakness == projectile->upgradeType) {
+                        damage *= 2.0f;
+                    }
                     enemy->hitPoints -= damage;
+
+                    if (projectile->upgradeType == UPGRADE_TYPE_CANNONBALL_ATK) {
+                        splashDamageNearbyEnemies(projectile);
+                    }
+
+                    soundManPlaySound("sfx_enemy_hit");
 
                     FloatingText *ft = spawnFloatingText();
                     if (ft) {
@@ -1186,7 +1713,9 @@ void updateBubbleGame (bubble_game *bg, game_input *input,
                         if (suckedBubble) {
                             suckedBubble->falling = true;
                         }
-                        removeEnemy(enemy);
+                        enemy->state = ENEMY_STATE_DYING;
+                        enemy->t = 0.0f;
+                soundManPlaySound("sfx_enemy_killed");
                     }
 
                     removeProjectile(projectile);
@@ -1196,7 +1725,8 @@ void updateBubbleGame (bubble_game *bg, game_input *input,
                     vec2 vel = vec2ScalarMul(projectile->speed, toEnemy);
                     vel = vec2ScalarMul(dt, vel);
                     projectile->pos = vec2Add(projectile->pos, vel);
-                    projectile->angle = atan2(toEnemy.y, toEnemy.x);
+                    vec2 toEnemyNormalized = vec2Normalize(toEnemy);
+                    projectile->angle = arctangent2(toEnemyNormalized.y, toEnemyNormalized.x);
                     projectile->angle /= (2.0f * PI);
                 }
             }
@@ -1226,6 +1756,62 @@ void updateBubbleGame (bubble_game *bg, game_input *input,
             }
         }
     }
+
+    i32 numActiveEnemies = 0;
+    for (i32 i = 0; i < bubbleGame->enemies.numValues; i++) {
+        Enemy *enemy = &bubbleGame->enemies.values[i];
+        if (enemy->active) {
+            numActiveEnemies++;
+        }
+    }
+    if (numActiveEnemies == 0 && wave->spawnedBoss) {
+        bubbleGame->waveIndex++;
+        bubbleGame->enemySpawnTimer = 0.0f;
+        if (bubbleGame->waveIndex >= bubbleGame->waves.numValues) {
+            bubbleGame->win = true;
+        }
+    }
+
+    for (i32 i = 0; i < bubbleGame->particles.numValues; i++) {
+        BubbleParticles *particles = &bubbleGame->particles.values[i];
+        if (particles->active) {
+            particles->t += dt;
+            if (particles->t >= PARTICLE_BURST_TIME) {
+                removeBubbleParticles(particles);
+            }
+        }
+    }
+
+    i32 lowestRow = 0;
+    for (i32 i = 0; i < GRID_NUM_ROWS; i++) {
+        for (i32 j = 0; j < GRID_NUM_COLS; j++) { 
+            Bubble *bubble = tryGetBubbleAtRowCol(i, j);
+            if (bubble) {
+                lowestRow = i;
+            }
+        }
+    }
+
+    if (lowestRow > 18) {
+        bubbleGame->tooLowDanger = true;
+        bubbleGame->tooLowDangerTimer += dt;
+        if (bubbleGame->tooLowDangerTimer >= 0.75f) {
+            bubbleGame->tooLowDangerTimer = 0.0f;
+            bubbleGame->lineRed = !bubbleGame->lineRed;
+        }
+    }
+    else {
+        bubbleGame->tooLowDanger = true;
+        bubbleGame->tooLowDangerTimer = 0.0f;
+        bubbleGame->lineRed = false;
+    }
+
+    if (lowestRow > 21) {
+        bubbleGame->gameOver = true;
+    }
+    if (bubbleGame->bubblesBurst) {
+        soundManPlaySound("sfx_pop");
+    }
 }
 
 char *bubbleColorToFrameName (BubbleColor color) {
@@ -1241,10 +1827,12 @@ char *bubbleColorToFrameName (BubbleColor color) {
     case BUBBLE_COLOR_PURPLE: 
         return "bubble_purple";
     }
-    return "dpad_left_down";
+    return "bubble_red";
 }
 
 void setBubbleSpriteFrameKey (sprite *s, BubbleType type, BubbleColor color, UnitType unitType, b32 isDiamond) {
+    s->frameKey = "bubble_red";
+
     if (isDiamond) {
         s->frameKey = "diamond";
     }
@@ -1256,7 +1844,53 @@ void setBubbleSpriteFrameKey (sprite *s, BubbleType type, BubbleColor color, Uni
             case UNIT_TYPE_ARCHER: {
                 s->frameKey = "archer_0";
             } break;
+            case UNIT_TYPE_KNIGHT: {
+                s->frameKey = "knight_0";
+            } break;
+            case UNIT_TYPE_CANNON: {
+                s->frameKey = "cannon_0";
+            } break;
+            case UNIT_TYPE_FARMER: {
+                s->frameKey = "farmer_0";
+            } break;
         }
+    }
+}
+
+void setEnemySpriteFrameKey (sprite *s, EnemyType type, i32 frame) {
+    switch (type) {
+        case ENEMY_TYPE_GOBLIN:{
+            if (frame == 0) {
+                s->frameKey = "goblin_0";
+            }
+            else {
+                s->frameKey = "goblin_1";
+            }
+        } break;
+        case ENEMY_TYPE_GARGOYLE:{
+            if (frame == 0) {
+                s->frameKey = "gargoyle_0";
+            }
+            else {
+                s->frameKey = "gargoyle_1";
+            }
+        } break;
+        case ENEMY_TYPE_RAT:{
+            if (frame == 0) {
+                s->frameKey = "rat_0";
+            }
+            else {
+                s->frameKey = "rat_1";
+            }
+        } break;
+        case ENEMY_TYPE_BLACK_KNIGHT:{
+            if (frame == 0) {
+                s->frameKey = "black_knight_0";
+            }
+            else {
+                s->frameKey = "black_knight_1";
+            }
+        } break;
     }
 }
 
@@ -1279,8 +1913,40 @@ void centerText (sprite_text *text) {
 }
 
 void drawBubbleGame (bubble_game *bg, plat_api platAPI) {
+    if (bubbleGame->state == GAME_STATE_TITLE) {
+        sprite_text labelText = {
+            .text = "Battle Bobble",
+            .fontKey = "font",
+            .x = 320.0f,
+            .y = 160.0f
+        };
+        centerText(&labelText);
+        spriteManAddText(labelText);
+
+        {
+            sprite_text labelText = {
+                .text = "Click to continue",
+                .fontKey = "font",
+                .x = 320.0f,
+                .y = 200.0f
+            };
+            centerText(&labelText);
+            spriteManAddText(labelText);
+
+        }
+
+        return;
+    }
+
+    {
+        sprite s = defaultSprite();
+        s.pos = (vec2) { .x = 0.0f, .y = 0.0f };
+        s.textureKey = "background";
+        spriteManAddSprite(s);
+    }
+
     i32 numDestroyedHouses = MAX_LIVES - bubbleGame->lives;
-    for (i32 i = 0; i < numDestroyedHouses; i++) {
+    for (i32 i = 0; i < numDestroyedHouses && i < MAX_LIVES; i++) {
             sprite s = defaultSprite();
             i32 col = i / 2;
             i32 row = i % 2;
@@ -1304,15 +1970,29 @@ void drawBubbleGame (bubble_game *bg, plat_api platAPI) {
             spriteManAddSprite(s);
     }
 
+
+    spriteManPushTransform((sprite_transform){
+            .pos = (vec2){ .x = 16.0f, .y = 16.0f },
+            .scale = 1.0f
+    });
+
     for (i32 i = 0; i < bubbleGame->enemies.numValues; i++) {
         Enemy *enemy = &bubbleGame->enemies.values[i];
         if (enemy->active) {
             sprite s = defaultSprite();
             s.pos = enemy->pos;
             s.atlasKey = "atlas";
-            s.frameKey = "goblin_0";
+            setEnemySpriteFrameKey(&s, enemy->type, enemy->walkFrame);
             s.anchor = (vec2){ .x = 0.5f, .y = 0.5f };
             s.scale = enemy->scale;
+
+            if (enemy->state == ENEMY_STATE_DYING) {
+                s.tint = 0xff0000;
+                f32 t = enemy->t / 0.5f;
+                f32 deathScale = (1.0f - t) * 1.0f;
+                s.scale *= deathScale;
+            }
+
             spriteManAddSprite(s);
         }
     }
@@ -1329,7 +2009,9 @@ void drawBubbleGame (bubble_game *bg, plat_api platAPI) {
         }
     }
 
-    f32 angle = atan2(bubbleGame->launcherTarget.y - LAUNCHER_POS_Y, bubbleGame->launcherTarget.x - LAUNCHER_POS_X);
+    vec2 launcherAngle = (vec2){ .y = bubbleGame->launcherTarget.y - LAUNCHER_POS_Y, .x = bubbleGame->launcherTarget.x - LAUNCHER_POS_X };
+    launcherAngle = vec2Normalize(launcherAngle);
+    f32 angle = arctangent2(launcherAngle.y, launcherAngle.x);
     {
         sprite s = defaultSprite();
         s.pos = (vec2){ .x = LAUNCHER_POS_X, .y = LAUNCHER_POS_Y };
@@ -1342,7 +2024,7 @@ void drawBubbleGame (bubble_game *bg, plat_api platAPI) {
 
     for (i32 i = 0; i < bubbleGame->bubbleQueue.numValues; i++) {
         sprite s = defaultSprite();
-        s.pos = (vec2){ .x = LAUNCHER_POS_X + 24.0f + i * 16.0f, .y = LAUNCHER_POS_Y };
+        s.pos = (vec2){ .x = LAUNCHER_POS_X + 24.0f + i * 16.0f, .y = LAUNCHER_POS_Y + 8.0f };
         s.atlasKey = "atlas";
         BubbleQueueItem item = bubbleGame->bubbleQueue.values[i];
         setBubbleSpriteFrameKey(&s, item.type, item.color, item.unitType, false);
@@ -1363,6 +2045,8 @@ void drawBubbleGame (bubble_game *bg, plat_api platAPI) {
             spriteManAddSprite(s);
         }
     }
+
+    spriteManPopMatrix();
 
     for (i32 i = 0; i < bubbleGame->buttons.numValues; i++) {
         Button *b = &bubbleGame->buttons.values[i];
@@ -1421,8 +2105,8 @@ void drawBubbleGame (bubble_game *bg, plat_api platAPI) {
     sprite_text goldText = {
         .text = tempStringFromI32(bubbleGame->gold),
         .fontKey = "font",
-        .x = 520.0f,
-        .y = 332.0f
+        .x = 519.0f,
+        .y = 331.0f
     };
     centerText(&goldText);
     spriteManAddText(goldText);
@@ -1444,8 +2128,8 @@ void drawBubbleGame (bubble_game *bg, plat_api platAPI) {
     sprite_text diamondText = {
         .text = tempStringFromI32(bubbleGame->diamonds),
         .fontKey = "font",
-        .x = 520.0f,
-        .y = 24.0f
+        .x = 519.0f,
+        .y = 20.0f
     };
     centerText(&diamondText);
     spriteManAddText(diamondText);
@@ -1462,6 +2146,105 @@ void drawBubbleGame (bubble_game *bg, plat_api platAPI) {
         s.anchor = (vec2){ .x = 0.5f, .y = 0.5f };
         spriteManAddSprite(s);
     }
+
+
+    {
+        sprite s = defaultSprite();
+        s.pos = (vec2) { .x = 0.0f, .y = 0.0f };
+        s.textureKey = "frame";
+        spriteManAddSprite(s);
+    }
+
+    // upgrade zone
+    {
+        sprite s = defaultSprite();
+        s.pos = (vec2) { .x = 444.0f, .y = 64.0f };
+        s.atlasKey = "atlas";
+        s.frameKey = "arrow";
+        s.anchor = (vec2){ .x = 0.5f, .y = 0.5f };
+        spriteManAddSprite(s);
+    }
+    {
+        char *text = "+";
+        char *upgradeCount = tempStringFromI32(bubbleGame->upgrades[UPGRADE_TYPE_ARROW_ATK]);
+        sprite_text t = {
+            .text = tempStringAppend(text, upgradeCount),
+            .fontKey = "font",
+            .x = 424.0f,
+            .y = 64.0f
+        };
+        centerText(&t);
+        spriteManAddText(t);
+    }
+
+    {
+        sprite s = defaultSprite();
+        s.pos = (vec2) { .x = 556.0f, .y = 64.0f };
+        s.atlasKey = "atlas";
+        s.frameKey = "slash";
+        s.anchor = (vec2){ .x = 0.5f, .y = 0.5f };
+        spriteManAddSprite(s);
+    }
+    {
+        char *text = "+";
+        char *upgradeCount = tempStringFromI32(bubbleGame->upgrades[UPGRADE_TYPE_SLASH_ATK]);
+        sprite_text t = {
+            .text = tempStringAppend(text, upgradeCount),
+            .fontKey = "font",
+            .x = 536.0f,
+            .y = 64.0f
+        };
+        centerText(&t);
+        spriteManAddText(t);
+    }
+
+    {
+        sprite s = defaultSprite();
+        s.pos = (vec2) { .x = 444.0f, .y = 112.0f };
+        s.atlasKey = "atlas";
+        s.frameKey = "cannonball";
+        s.anchor = (vec2){ .x = 0.5f, .y = 0.5f };
+        spriteManAddSprite(s);
+    }
+    {
+        char *text = "+";
+        char *upgradeCount = tempStringFromI32(bubbleGame->upgrades[UPGRADE_TYPE_CANNONBALL_ATK]);
+        sprite_text t = {
+            .text = tempStringAppend(text, upgradeCount),
+            .fontKey = "font",
+            .x = 424.0f,
+            .y = 112.0f
+        };
+        centerText(&t);
+        spriteManAddText(t);
+    }
+
+    {
+        sprite s = defaultSprite();
+        s.pos = (vec2) { .x = 556.0f, .y = 112.0f };
+        s.atlasKey = "atlas";
+        s.frameKey = "pitchfork";
+        s.anchor = (vec2){ .x = 0.5f, .y = 0.5f };
+        spriteManAddSprite(s);
+    }
+    {
+        char *text = "+";
+        char *upgradeCount = tempStringFromI32(bubbleGame->upgrades[UPGRADE_TYPE_FARMING]);
+        sprite_text t = {
+            .text = tempStringAppend(text, upgradeCount),
+            .fontKey = "font",
+            .x = 536.0f,
+            .y = 112.0f
+        };
+        centerText(&t);
+        spriteManAddText(t);
+    }
+
+
+    spriteManPushTransform((sprite_transform){
+            .pos = (vec2){ .x = 16.0f, .y = 16.0f },
+            .scale = 1.0f
+    });
 
     for (i32 i = 0; i < bubbleGame->floatingTexts.numValues; i++) {
         FloatingText *floatingText = &bubbleGame->floatingTexts.values[i];
@@ -1492,27 +2275,121 @@ void drawBubbleGame (bubble_game *bg, plat_api platAPI) {
         }
     }
 
-    //doUpgradeUI(&boughtSomething, (vec2){ .x = 416.0f, .y = 48.0f}, UPGRADE_TYPE_ARROW_ATK, 
-    //             "arrow", localPointerPos, input->pointerDown, input->pointerJustDown);
-    {
-        sprite s = defaultSprite();
-        s.pos = (vec2) { .x = 448.0f, .y = 64.0f };
-        s.atlasKey = "atlas";
-        s.frameKey = "arrow";
-        s.anchor = (vec2){ .x = 0.5f, .y = 0.5f };
-        spriteManAddSprite(s);
+    for (i32 i = 0; i < bubbleGame->particles.numValues; i++) {
+        BubbleParticles *particles = &bubbleGame->particles.values[i];
+        if (particles->active) {
+            f32 t = particles->t / PARTICLE_BURST_TIME;
+            for (i32 pIndex = 0; pIndex < 5; pIndex++) {
+                f32 startScale = 0.5f;
+                f32 endScale = 0.0f;
+                f32 dx = fastCos2PI(particles->angles[pIndex]);
+                f32 dy = fastSin2PI(particles->angles[pIndex]);
+                vec2 dir = (vec2){ .x = dx, .y = dy };
+                dir = vec2ScalarMul(16.0f, dir);
+                vec2 endPos = vec2Add(particles->pos, dir);
+
+                sprite s = defaultSprite();
+                s.pos = vec2Add(vec2ScalarMul((1.0f - t), particles->pos),
+                                vec2ScalarMul(t, endPos));
+                s.scale = (1.0f - t) * startScale + t * endScale;
+                s.atlasKey = "atlas";
+                setBubbleSpriteFrameKey(&s, BUBBLE_TYPE_NORMAL, particles->color, UNIT_TYPE_ARCHER, false);
+                s.anchor = (vec2){ .x = 0.5f, .y = 0.5f };
+                spriteManAddSprite(s);
+            }
+        }
     }
 
     {
-        char *text = "+";
-        char *upgradeCount = tempStringFromI32(bubbleGame->upgrades[UPGRADE_TYPE_ARROW_ATK]);
-        sprite_text t = {
-            .text = tempStringAppend(text, upgradeCount),
-            .fontKey = "font",
-            .x = 424.0f,
-            .y = 64.0f
-        };
-        centerText(&t);
-        spriteManAddText(t);
+        sprite s = defaultSprite();
+        s.pos = (vec2) { .x = 1.0f, .y = 295.0f };
+        s.atlasKey = "atlas";
+        s.frameKey = "dashed_lines";
+        if (bubbleGame->lineRed) {
+            s.tint = 0xff0000;
+        }
+        spriteManAddSprite(s);
     }
+
+    spriteManPopMatrix();
+
+    {
+        sprite_text labelText = {
+            .text = tempStringAppend("wave ", tempStringFromI32(bubbleGame->waveIndex + 1)),
+            .fontKey = "font",
+            .x = 39.0f,
+            .y = 344.0f
+        };
+        centerText(&labelText);
+        spriteManAddText(labelText);
+    }
+
+    {
+
+        u32 time = (u32)bubbleGame->gameTime;
+        u32 seconds = time % 60;
+        u32 minutes = time / 60;
+        u32 hours = time / 3600;
+        char *timeString = tempStringFromI32((i32)hours);
+        timeString = tempStringAppend(timeString, ":");
+        if (minutes < 10) {
+            timeString = tempStringAppend(timeString, "0");
+        }
+        timeString = tempStringAppend(timeString, tempStringFromI32((i32)minutes));
+        timeString = tempStringAppend(timeString, ":");
+        if (seconds < 10) {
+            timeString = tempStringAppend(timeString, "0");
+        }
+        timeString = tempStringAppend(timeString, tempStringFromI32((i32)seconds));
+
+        sprite_text labelText = {
+            .text = timeString,
+            .fontKey = "font",
+            .x = 374.0f,
+            .y = 343.0f
+        };
+        centerText(&labelText);
+        spriteManAddText(labelText);
+    }
+
+    if (bubbleGame->gameOver) {
+        {
+            sprite s = defaultSprite();
+            s.pos = (vec2) { .x = 320.0f, .y = 180.0f };
+            s.atlasKey = "atlas";
+            s.frameKey = "message_panel";
+                s.anchor = (vec2){ .x = 0.5f, .y = 0.5f };
+            spriteManAddSprite(s);
+        }
+
+        sprite_text labelText = {
+            .text = "Game Over",
+            .fontKey = "font",
+            .x = 320.0f,
+            .y = 180.0f
+        };
+        centerText(&labelText);
+        spriteManAddText(labelText);
+    }
+
+    if (bubbleGame->win) {
+        {
+            sprite s = defaultSprite();
+            s.pos = (vec2) { .x = 320.0f, .y = 180.0f };
+            s.atlasKey = "atlas";
+            s.frameKey = "message_panel";
+                s.anchor = (vec2){ .x = 0.5f, .y = 0.5f };
+            spriteManAddSprite(s);
+        }
+
+        sprite_text labelText = {
+            .text = "You Win!",
+            .fontKey = "font",
+            .x = 320.0f,
+            .y = 180.0f
+        };
+        centerText(&labelText);
+        spriteManAddText(labelText);
+    }
+
 }

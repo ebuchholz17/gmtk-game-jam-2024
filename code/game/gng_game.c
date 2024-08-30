@@ -203,8 +203,25 @@ void resetInput (game_input *input, virtual_input *vInput) {
 UPDATE_GNG_GAME(updateGNGGame) {
     gng_game_state *state = (gng_game_state *)platAPI.mainMemory;
 
+    mem_arena scratchMemory = {
+        .base = platAPI.scratchMemory,
+        .current = platAPI.scratchMemory,
+        .capacity = platAPI.scratchMemorySize
+    };
+
+    u64 tempStringMemoryCapcity = 2 * 1024 * 1024;
+    void *tempStringMemoryBase = allocMemory(&scratchMemory, tempStringMemoryCapcity); 
+    tempStringMemory = (mem_arena){
+        .base = tempStringMemoryBase,
+        .current = tempStringMemoryBase,
+        .capacity = tempStringMemoryCapcity
+    };
+
+
     if (!state->initialized) {
         state->initialized = true;
+
+        state->bubbleGame = (bubble_game){};
 
         setRNGSeed(platAPI.rngSeedFromTime());
 
@@ -216,7 +233,6 @@ UPDATE_GNG_GAME(updateGNGGame) {
         initGameAssets(&state->assetMan, &platAPI);
 
         debugConsoleLog = platAPI.consoleLog;
-        initBubbleGame(&state->bubbleGame, &state->memory);
 
         asset_to_load_list *assetList = &state->assetMan.assetToLoadList;
 
@@ -243,32 +259,96 @@ UPDATE_GNG_GAME(updateGNGGame) {
             .key = "font"
         });
         asset_to_load_listPush(assetList, (asset_to_load){
-            .name = "sfx_impact",
-            .path = "assets/impact.wav",
+            .name = "background",
+            .path = "assets/background.bmp",
+            .type = ASSET_TO_LOAD_TYPE_BITMAP,
+            .loaded = false,
+            .key = "background"
+        });
+        asset_to_load_listPush(assetList, (asset_to_load){
+            .name = "frame",
+            .path = "assets/frame.bmp",
+            .type = ASSET_TO_LOAD_TYPE_BITMAP,
+            .loaded = false,
+            .key = "frame"
+        });
+
+        asset_to_load_listPush(assetList, (asset_to_load){
+            .name = "sfx_arrow",
+            .path = "assets/arrow.wav",
             .type = ASSET_TO_LOAD_TYPE_WAV,
             .loaded = false,
-            .key = "sfx_impact"
+            .key = "sfx_arrow"
         });
         asset_to_load_listPush(assetList, (asset_to_load){
-            .name = "gm_punch",
-            .path = "assets/hitbox/gm_punch.txt",
-            .type = ASSET_TO_LOAD_TYPE_DATA,
+            .name = "sfx_bought_unit",
+            .path = "assets/bought_unit.wav",
+            .type = ASSET_TO_LOAD_TYPE_WAV,
             .loaded = false,
-            .key = "gm_punch"
+            .key = "sfx_bought_unit"
         });
         asset_to_load_listPush(assetList, (asset_to_load){
-            .name = "sheep_circle_attack",
-            .path = "assets/hitbox/sheep_circle_attack",
-            .type = ASSET_TO_LOAD_TYPE_DATA,
+            .name = "sfx_bubble_launch",
+            .path = "assets/bubble_launch.wav",
+            .type = ASSET_TO_LOAD_TYPE_WAV,
             .loaded = false,
-            .key = "sheep_circle_attack"
+            .key = "sfx_bubble_launch"
         });
         asset_to_load_listPush(assetList, (asset_to_load){
-            .name = "sheep_stomp_attack",
-            .path = "assets/hitbox/sheep_stomp_attack",
-            .type = ASSET_TO_LOAD_TYPE_DATA,
+            .name = "sfx_bubble_land",
+            .path = "assets/bubble_land.wav",
+            .type = ASSET_TO_LOAD_TYPE_WAV,
             .loaded = false,
-            .key = "sheep_stomp_attack"
+            .key = "sfx_bubble_land"
+        });
+        asset_to_load_listPush(assetList, (asset_to_load){
+            .name = "sfx_cannon",
+            .path = "assets/cannon.wav",
+            .type = ASSET_TO_LOAD_TYPE_WAV,
+            .loaded = false,
+            .key = "sfx_cannon"
+        });
+        asset_to_load_listPush(assetList, (asset_to_load){
+            .name = "sfx_enemy_grow",
+            .path = "assets/enemy_grow.wav",
+            .type = ASSET_TO_LOAD_TYPE_WAV,
+            .loaded = false,
+            .key = "sfx_enemy_grow"
+        });
+        asset_to_load_listPush(assetList, (asset_to_load){
+            .name = "sfx_enemy_hit",
+            .path = "assets/enemy_hit.wav",
+            .type = ASSET_TO_LOAD_TYPE_WAV,
+            .loaded = false,
+            .key = "sfx_enemy_hit"
+        });
+        asset_to_load_listPush(assetList, (asset_to_load){
+            .name = "sfx_enemy_killed",
+            .path = "assets/enemy_killed.wav",
+            .type = ASSET_TO_LOAD_TYPE_WAV,
+            .loaded = false,
+            .key = "sfx_enemy_killed"
+        });
+        asset_to_load_listPush(assetList, (asset_to_load){
+            .name = "sfx_house_destroyed",
+            .path = "assets/house_destroyed.wav",
+            .type = ASSET_TO_LOAD_TYPE_WAV,
+            .loaded = false,
+            .key = "sfx_house_destroyed"
+        });
+        asset_to_load_listPush(assetList, (asset_to_load){
+            .name = "sfx_pop",
+            .path = "assets/pop.wav",
+            .type = ASSET_TO_LOAD_TYPE_WAV,
+            .loaded = false,
+            .key = "sfx_pop"
+        });
+        asset_to_load_listPush(assetList, (asset_to_load){
+            .name = "sfx_slash",
+            .path = "assets/slash.wav",
+            .type = ASSET_TO_LOAD_TYPE_WAV,
+            .loaded = false,
+            .key = "sfx_slash"
         });
 
         for (u32 assetIndex = 0; assetIndex < assetList->numValues; ++assetIndex) {
@@ -280,22 +360,8 @@ UPDATE_GNG_GAME(updateGNGGame) {
         soundManInit(&state->soundMan, &state->assetMan);
 
         platAPI.consoleLog("game ready");
-
     }
 
-    mem_arena scratchMemory = {
-        .base = platAPI.scratchMemory,
-        .current = platAPI.scratchMemory,
-        .capacity = platAPI.scratchMemorySize
-    };
-
-    u64 tempStringMemoryCapcity = 1 * 1024 * 1024;
-    void *tempStringMemoryBase = allocMemory(&scratchMemory, tempStringMemoryCapcity); 
-    tempStringMemory = (mem_arena){
-        .base = tempStringMemoryBase,
-        .current = tempStringMemoryBase,
-        .capacity = tempStringMemoryCapcity
-    };
 
     spriteMan->sprites = sprite_listInit(&scratchMemory, SPRITE_LIST_MAX_NUM_SPRITES);
     spriteMan->matrixStackIndex = 0;
@@ -314,6 +380,7 @@ UPDATE_GNG_GAME(updateGNGGame) {
                             parseBitmap(assetMan, asset->key, file->data);
                             texture_asset *textureAsset = texture_asset_hash_mapGetPtr(&assetMan->textures, asset->key);
                             loadTextureOnGPU(renderMemory, textureAsset->id, textureAsset->width, textureAsset->height, textureAsset->pixels);
+                            platAPI.consoleLog("loaded bitmap");
                         } break;
                         case ASSET_TO_LOAD_TYPE_ATLAS_TEXTURE: {
                             atlas_asset *atlas = atlas_asset_hash_mapGetPtr(&assetMan->atlases, asset->key);
@@ -327,6 +394,7 @@ UPDATE_GNG_GAME(updateGNGGame) {
                             texture_asset *textureAsset = texture_asset_hash_mapGetPtr(&assetMan->textures, asset->key);
                             loadTextureOnGPU(renderMemory, textureAsset->id, textureAsset->width, textureAsset->height, textureAsset->pixels);
                             atlas->textureID = textureAsset->id;
+                            platAPI.consoleLog("loaded atlas texture");
                         } break;
                         case ASSET_TO_LOAD_TYPE_ATLAS_DATA: {
                             atlas_asset *atlas = atlas_asset_hash_mapGetPtr(&assetMan->atlases, asset->key);
@@ -337,6 +405,7 @@ UPDATE_GNG_GAME(updateGNGGame) {
                             }
 
                             parseAtlasData(assetMan, atlas, file->data);
+                            platAPI.consoleLog("loaded atlas data");
                         } break;
                         case ASSET_TO_LOAD_TYPE_WAV: {
                             parseWav(assetMan, asset->key, file->data, platAPI);
@@ -363,6 +432,7 @@ UPDATE_GNG_GAME(updateGNGGame) {
             asset_to_load *asset = &assetMan->assetToLoadList.values[assetIndex];
             if (!asset->loaded) {
                 allLoaded = false;
+
                 break;
             }
         }
@@ -395,8 +465,13 @@ UPDATE_GNG_GAME(updateGNGGame) {
     }
 
     if (state->assetMan.allFilesLoaded) {
-        if (platAPI.hasTouchControls) {
-            setVirtualInput(&state->vInput, input, &platAPI);
+        if (state->bubbleGame.reset) {
+            state->bubbleGame = (bubble_game){};
+            initBubbleGame(&state->bubbleGame, &state->memory);
+        }
+
+        if (!state->bubbleGame.isInitialized) {
+            initBubbleGame(&state->bubbleGame, &state->memory);
         }
 
         state->t += dt;
@@ -404,7 +479,8 @@ UPDATE_GNG_GAME(updateGNGGame) {
             state->t -= 1000.0f;
         }
         f32 remainingTime = dt;
-        f32 updateDelta = (1.0f / 144.0f);
+        remainingTime = remainingTime > 0.2f ? 0.2f : remainingTime;
+        f32 updateDelta = (1.0f / 100.0f);
 
         spriteManPushTransform((sprite_transform){ .pos = gameOrigin, .scale = gameScale });
 
@@ -427,97 +503,6 @@ UPDATE_GNG_GAME(updateGNGGame) {
         drawBubbleGame(&state->bubbleGame, platAPI);
         spriteManPopMatrix();
 
-
-        if (platAPI.hasTouchControls) {
-
-            virtual_input *vInput = &state->vInput;
-            sprite testButtonSprite = defaultSprite();
-            testButtonSprite.atlasKey = "atlas";
-            testButtonSprite.scale = 1.0f;
-            testButtonSprite.alpha = 0.5f;
-
-            if (vInput->dPadUp.button.down) {
-                testButtonSprite.frameKey = "dpad_up_down";
-            }
-            else {
-                testButtonSprite.frameKey = "dpad_up_up";
-            }
-            testButtonSprite.pos.x = vInput->dPadUp.boundingBox.min.x;
-            testButtonSprite.pos.y = vInput->dPadUp.boundingBox.min.y;
-            spriteManAddSprite(testButtonSprite);
-            
-            if (vInput->dPadDown.button.down) {
-                testButtonSprite.frameKey = "dpad_down_down";
-            }
-            else {
-                testButtonSprite.frameKey = "dpad_down_up";
-            }
-            testButtonSprite.pos.x = vInput->dPadDown.boundingBox.min.x;
-            testButtonSprite.pos.y = vInput->dPadDown.boundingBox.min.y;
-            spriteManAddSprite(testButtonSprite);
-
-            if (vInput->dPadLeft.button.down) {
-                testButtonSprite.frameKey = "dpad_left_down";
-            }
-            else {
-                testButtonSprite.frameKey = "dpad_left_up";
-            }
-            testButtonSprite.pos.x = vInput->dPadLeft.boundingBox.min.x;
-            testButtonSprite.pos.y = vInput->dPadLeft.boundingBox.min.y;
-            spriteManAddSprite(testButtonSprite);
-
-            if (vInput->dPadRight.button.down) {
-                testButtonSprite.frameKey = "dpad_right_down";
-            }
-            else {
-                testButtonSprite.frameKey = "dpad_right_up";
-            }
-            testButtonSprite.pos.x = vInput->dPadRight.boundingBox.min.x;
-            testButtonSprite.pos.y = vInput->dPadRight.boundingBox.min.y;
-            spriteManAddSprite(testButtonSprite);
-
-            if (vInput->topButton.button.down) {
-                testButtonSprite.frameKey = "face_button_down";
-            }
-            else {
-                testButtonSprite.frameKey = "face_button_up";
-            }
-            testButtonSprite.pos.x = vInput->topButton.boundingBox.min.x;
-            testButtonSprite.pos.y = vInput->topButton.boundingBox.min.y;
-            spriteManAddSprite(testButtonSprite);
-            
-            if (vInput->bottomButton.button.down) {
-                testButtonSprite.frameKey = "face_button_down";
-            }
-            else {
-                testButtonSprite.frameKey = "face_button_up";
-            }
-            testButtonSprite.pos.x = vInput->bottomButton.boundingBox.min.x;
-            testButtonSprite.pos.y = vInput->bottomButton.boundingBox.min.y;
-            spriteManAddSprite(testButtonSprite);
-
-            if (vInput->leftButton.button.down) {
-                testButtonSprite.frameKey = "face_button_down";
-            }
-            else {
-                testButtonSprite.frameKey = "face_button_up";
-            }
-            testButtonSprite.pos.x = vInput->leftButton.boundingBox.min.x;
-            testButtonSprite.pos.y = vInput->leftButton.boundingBox.min.y;
-            spriteManAddSprite(testButtonSprite);
-
-            if (vInput->rightButton.button.down) {
-                testButtonSprite.frameKey = "face_button_down";
-            }
-            else {
-                testButtonSprite.frameKey = "face_button_up";
-            }
-            testButtonSprite.pos.x = vInput->rightButton.boundingBox.min.x;
-            testButtonSprite.pos.y = vInput->rightButton.boundingBox.min.y;
-            spriteManAddSprite(testButtonSprite);
-
-
-        }
     }
 
 

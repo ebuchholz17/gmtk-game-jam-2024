@@ -41,12 +41,12 @@ WASM_EXPORT void initGame (void) {
    memCapacity = getMemCapacity();
 
    // reserve space at the beginning of memory for temp memory
-   webAllocMemory(2 * 1024 * 1024);
+   webAllocMemory(10 * 1024 * 1024);
    memStart = memCurrent; 
 
-   u32 mainMemorySize = 5 * 1024 * 1024;
-   u32 assetMemorySize = 2 * 1024 * 1024;
-   u32 scratchMemorySize = 5 * 1024 * 1024;
+   u32 mainMemorySize = 10 * 1024 * 1024;
+   u32 assetMemorySize = 10 * 1024 * 1024;
+   u32 scratchMemorySize = 10 * 1024 * 1024;
 
    platAPI = (plat_api){
        .consoleLog = consoleLog,
@@ -60,7 +60,7 @@ WASM_EXPORT void initGame (void) {
        .scratchMemory = webAllocMemory(scratchMemorySize)
    };
 
-   u32 renderMemorySize = 10 * 1024 * 1024;
+   u32 renderMemorySize = 30 * 1024 * 1024;
    void *renderMemoryBase = webAllocMemory(renderMemorySize);
 
    renderMemory = (mem_arena){
